@@ -15,7 +15,7 @@ export default function StatusTab() {
   const [showCCF,   setShowCCF] = useState(false);
   const [realData,  setReal]    = useState(null);   // from /api/data
   const [calcSteps, setCalc]    = useState(null);
-  const [arxInfo,   setArx]     = useState({ alpha: 0.68, beta: 0.12, gamma: 0.045, r2: 0.718 });
+  const [arxInfo,   setArx]     = useState({ alpha: 0.6634, beta: 0.0069, gamma: 0.0153, r2: 0.718 });
 
   // Load GitHub data for CCF
   useEffect(() => {

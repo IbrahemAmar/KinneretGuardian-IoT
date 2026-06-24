@@ -36,7 +36,7 @@ export default function CalcSteps({ steps, title = '🔢 Step-by-Step Calculatio
   );
 }
 
-export function buildARXSteps({ ws, wd, hsPrev, alpha = 0.68, beta = 0.12, gamma = 0.045 }) {
+export function buildARXSteps({ ws, wd, hsPrev, alpha = 0.6634, beta = 0.0069, gamma = 0.0153 }) {
   const wdRad   = (wd * Math.PI) / 180;
   const uWind   = ws * Math.sin(wdRad);
   const uEast   = -uWind;

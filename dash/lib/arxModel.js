@@ -1,8 +1,8 @@
-// ARX: Hs(t) = α·Hs(t-1) + β·U_east(t-1) + γ  |  R² ≈ 0.718, lag = 1 h
-export const ARX_ALPHA = 0.68;
-export const ARX_BETA = 0.12;
-export const ARX_GAMMA = 0.045;
-export const BEST_LAG = 1;
+// ARX: Hs(t) = α·Hs(t-1) + β·U_east(t-1) + γ  |  R² = 0.718, MAE ≈ 0.02m, lag = 1h
+export const ARX_ALPHA = 0.6634;
+export const ARX_BETA  = 0.0069;
+export const ARX_GAMMA = 0.0153;
+export const BEST_LAG  = 1;
 
 export function arxPredict(hsPrev, uEastPrev) {
   return Math.max(0, ARX_ALPHA * hsPrev + ARX_BETA * uEastPrev + ARX_GAMMA);
@@ -13,6 +13,19 @@ export function arxForecast(hs0, uEast, hours = 12) {
   for (let i = 1; i <= hours; i++) {
     const hsNext = arxPredict(out[i - 1].Hs, uEast);
     out.push({ hour: i, Hs: Math.min(1.5, hsNext) });
+  }
+  return out;
+}
+
+// Forecast with wind that can vary per step (e.g. recovery scenario with decaying wind)
+// winds[i] = wind at hour i; Hs(t) uses winds[t-1] per the lag-1 ARX formula
+export function arxForecastVaryingWind(hs0, winds, hours = 12) {
+  const out = [{ hour: 0, Hs: hs0, wind: winds[0] }];
+  for (let i = 1; i <= hours; i++) {
+    const prev = out[i - 1].Hs;
+    const w    = winds[i - 1] ?? winds[winds.length - 1];
+    const Hs   = Math.max(0, Math.min(1.5, ARX_ALPHA * prev + ARX_BETA * w + ARX_GAMMA));
+    out.push({ hour: i, Hs, wind: winds[i] ?? winds[winds.length - 1] });
   }
   return out;
 }

@@ -3,9 +3,11 @@ import * as XLSX from 'xlsx';
 const GITHUB = 'https://raw.githubusercontent.com/IbrahemAmar/KinneretGuardian-IoT/main/';
 const WIND_FILE  = 'data_202606172157.xlsx';
 const WAVE_FILES = ['KNW08_Waves.xlsx','KNW09_Waves.xlsx','KNW10_Waves.xlsx','KNW11_Waves.xlsx','KNW12_Waves.xlsx'];
-const ARX_ALPHA = 0.68, ARX_BETA = 0.12, ARX_GAMMA = 0.045;
+const ARX_ALPHA = 0.6634, ARX_BETA = 0.0069, ARX_GAMMA = 0.0153;
 
-let _cache = null, _cacheTs = 0;
+let _fullMerged = null;   // full dataset, kept in memory
+let _meta       = null;   // arx, ccf, latest, availableDates
+let _cacheTs    = 0;
 const CACHE_TTL = 10 * 60 * 1000;
 
 async function loadExcel(name) {
@@ -107,67 +109,77 @@ function computeCCF(data, maxLag = 24) {
   });
 }
 
-export async function GET() {
-  if (_cache && Date.now() - _cacheTs < CACHE_TTL) return Response.json(_cache);
+export async function GET(req) {
+  // Rebuild cache if expired
+  if (!_fullMerged || Date.now() - _cacheTs >= CACHE_TTL) {
+    try {
+      // 1. Wind data
+      const windRaw = await loadExcel(WIND_FILE);
+      const wind    = parseWind(windRaw);
 
-  try {
-    // 1. Wind data
-    const windRaw = await loadExcel(WIND_FILE);
-    const wind    = parseWind(windRaw);
+      // 2. Wave data (all 5 buoys merged)
+      const wavesAll = [];
+      for (const f of WAVE_FILES) {
+        try {
+          const rows = await loadExcel(f);
+          wavesAll.push(...parseWaves(rows));
+        } catch { /* skip missing buoy */ }
+      }
 
-    // 2. Wave data (all 5 buoys merged)
-    const wavesAll = [];
-    for (const f of WAVE_FILES) {
-      try {
-        const rows = await loadExcel(f);
-        wavesAll.push(...parseWaves(rows));
-      } catch { /* skip missing buoy */ }
+      // 3. Merge wind + wave by row index (shared time grid)
+      const len    = Math.min(wind.length, wavesAll.length);
+      const merged = [];
+      for (let i = 1; i < len; i++) {
+        const w = wind[i], wv = wavesAll[i], wPrev = wind[i-1];
+        if (!w || !wv) continue;
+        merged.push({
+          idx:        i,
+          time:       w.time,
+          Ws:         +w.Ws.toFixed(3),
+          Wd:         +w.Wd.toFixed(1),
+          U_wind:     +w.U_wind.toFixed(3),
+          V_wind:     +w.V_wind.toFixed(3),
+          U_east:     +w.U_east.toFixed(3),
+          U_east_lag: +wPrev.U_east.toFixed(3),
+          Hs_prev:    +wavesAll[i-1].Hs.toFixed(3),
+          Hs:         +wv.Hs.toFixed(3),
+        });
+      }
+
+      const arx  = fitARX(merged);
+      const ccf  = computeCCF(merged.slice(-500));
+      const last = merged[merged.length - 1] ?? {};
+
+      // Unique UTC dates available across the full dataset
+      const availableDates = [...new Set(merged.map(r => r.time.slice(0, 10)))].sort();
+
+      _fullMerged = merged;
+      _meta       = {
+        arx:    { alpha: +arx.alpha.toFixed(4), beta: +arx.beta.toFixed(4), gamma: +arx.gamma.toFixed(4), r2: +arx.r2.toFixed(4) },
+        ccf,
+        latest: last,
+        availableDates,
+      };
+      _cacheTs = Date.now();
+
+    } catch (err) {
+      return Response.json({ ok: false, error: err.message, source: 'mock' }, { status: 200 });
     }
-
-    // 3. Simple merge: interleave wind & wave by row index (they share the same time grid)
-    const len = Math.min(wind.length, wavesAll.length);
-    const merged = [];
-    for (let i = 1; i < len; i++) {
-      const w = wind[i], wv = wavesAll[i], wPrev = wind[i-1];
-      if (!w || !wv) continue;
-      merged.push({
-        idx:      i,
-        time:     w.time,
-        Ws:       +w.Ws.toFixed(3),
-        Wd:       +w.Wd.toFixed(1),
-        U_wind:   +w.U_wind.toFixed(3),
-        V_wind:   +w.V_wind.toFixed(3),
-        U_east:   +w.U_east.toFixed(3),
-        U_east_lag: +wPrev.U_east.toFixed(3),
-        Hs_prev:  +wavesAll[i-1].Hs.toFixed(3),
-        Hs:       +wv.Hs.toFixed(3),
-      });
-    }
-
-    // 4. Fit ARX from real data
-    const arx = fitARX(merged);
-
-    // 5. CCF
-    const ccf = computeCCF(merged.slice(-500));  // last 500 rows for speed
-
-    // 6. Latest values
-    const last = merged[merged.length - 1] ?? {};
-
-    const result = {
-      ok:      true,
-      source:  'github',
-      count:   merged.length,
-      merged:  merged.slice(-200),   // send last 200 rows to client
-      ccf,
-      arx:     { alpha: +arx.alpha.toFixed(4), beta: +arx.beta.toFixed(4), gamma: +arx.gamma.toFixed(4), r2: +arx.r2.toFixed(4) },
-      latest:  last,
-    };
-
-    _cache   = result;
-    _cacheTs = Date.now();
-    return Response.json(result);
-
-  } catch (err) {
-    return Response.json({ ok: false, error: err.message, source: 'mock' }, { status: 200 });
   }
+
+  // Apply optional date filter: ?date=YYYY-MM-DD returns that day's rows
+  const { searchParams } = new URL(req.url);
+  const dateFilter = searchParams.get('date');
+
+  const rows = dateFilter
+    ? _fullMerged.filter(r => r.time.startsWith(dateFilter))
+    : _fullMerged.slice(-200);
+
+  return Response.json({
+    ok:     true,
+    source: 'github',
+    count:  rows.length,
+    merged: rows,
+    ..._meta,
+  });
 }

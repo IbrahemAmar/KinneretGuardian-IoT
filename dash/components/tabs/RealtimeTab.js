@@ -1,7 +1,6 @@
 'use client';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import dynamic from 'next/dynamic';
-import CalcSteps, { buildARXSteps } from '@/components/CalcSteps';
 import { classifyDanger, windDir, uEast as computeUEast } from '@/lib/dangerUtils';
 import { generateMockData, STATIONS } from '@/lib/mockData';
 
@@ -53,8 +52,7 @@ export default function RealtimeTab() {
   const [realRows,  setRealRows] = useState([]);
   const [data,      setData]     = useState(null);
   const [stations,  setStations] = useState({});
-  const [calcSteps, setCalc]     = useState(null);
-  const [arxInfo,   setArx]      = useState({ alpha: 0.68, beta: 0.12, gamma: 0.045, r2: 0.718 });
+  const [arxInfo,   setArx]      = useState({ alpha: 0.6634, beta: 0.0069, gamma: 0.0153, r2: 0.718 });
   const [apiStatus, setApiSt]    = useState('idle');      // idle | ok | error | loading
   const [lastTick,  setLastTick] = useState(null);        // wall-clock time of last tick
   const [imsDatetime, setImsDatetime] = useState(null);   // datetime from IMS API response
@@ -98,7 +96,6 @@ export default function RealtimeTab() {
     const dang  = classifyDanger(hs, ws);
     setData({ ws, wd, ue, hs, hsFc, dang, rawTime: row.time, live: false });
     setStations(buildStations(ws, ue, hs));
-    setCalc(buildARXSteps({ ws, wd, hsPrev: hs, alpha, beta, gamma }));
   }, [histIdx, source, dataset, arxInfo]);
 
   // Auto-play tick
@@ -122,7 +119,6 @@ export default function RealtimeTab() {
           setImsDatetime(d.datetime ?? null);
           setData({ ws, wd, ue, hs, hsFc, dang, rawTime: d.datetime, live: true });
           setStations(buildStations(ws, ue, hs));
-          setCalc(buildARXSteps({ ws, wd, hsPrev: hs, alpha, beta, gamma }));
           setApiSt('ok');
           return;
         }
@@ -362,9 +358,6 @@ export default function RealtimeTab() {
           )}
         </div>
       </div>
-
-      {/* Full calc steps */}
-      {calcSteps && <CalcSteps steps={calcSteps} title="🔢 Full ARX Calculation — Updates on Every Tick / Navigation" />}
 
       {/* Station mini-cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">

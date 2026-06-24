@@ -1,17 +1,17 @@
 'use client';
 import { useState } from 'react';
-import StatusTab   from '@/components/tabs/StatusTab';
-import SpatialTab  from '@/components/tabs/SpatialTab';
-import ForecastTab from '@/components/tabs/ForecastTab';
-import RAGTab      from '@/components/tabs/RAGTab';
-import RealtimeTab from '@/components/tabs/RealtimeTab';
+import StatusTab      from '@/components/tabs/StatusTab';
+import ForecastTab    from '@/components/tabs/ForecastTab';
+import RAGTab         from '@/components/tabs/RAGTab';
+import RealtimeTab    from '@/components/tabs/RealtimeTab';
+import WindWaveLagTab from '@/components/tabs/WindWaveLagTab';
 
 const TABS = [
   { key: 'status',   icon: '🏠', label: 'Current Status' },
-  { key: 'spatial',  icon: '🗺️', label: 'Spatial Map' },
   { key: 'forecast', icon: '📈', label: 'Forecasts' },
   { key: 'rag',      icon: '🧠', label: 'RAG Assistant' },
   { key: 'realtime', icon: '🔴', label: 'Realtime' },
+  { key: 'lag',      icon: '⏱️', label: 'Wind-Wave Lag' },
 ];
 
 export default function Home() {
@@ -64,10 +64,10 @@ export default function Home() {
 
       <main className="flex-1 max-w-7xl mx-auto w-full px-4 py-6">
         {tab === 'status'   && <StatusTab />}
-        {tab === 'spatial'  && <SpatialTab />}
         {tab === 'forecast' && <ForecastTab />}
         {tab === 'rag'      && <RAGTab />}
         {tab === 'realtime' && <RealtimeTab />}
+        {tab === 'lag'      && <WindWaveLagTab />}
       </main>
 
       <footer className="border-t py-3 px-4 text-center text-xs text-slate-600" style={{ borderColor: 'rgba(14,165,233,0.1)' }}>
