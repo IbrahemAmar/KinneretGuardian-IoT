@@ -7,6 +7,7 @@ import ConfusionMatrix   from '@/components/charts/ConfusionMatrix';
 import OriginalChart     from '@/components/OriginalChart';
 import CalcSteps         from '@/components/CalcSteps';
 import { RF_CONFUSION, RF_ACCURACY, FEATURE_IMPORTANCE } from '@/lib/mockData';
+
 import { classifyDanger } from '@/lib/dangerUtils';
 
 // Hardcoded ARX coefficients — Hs(t) = α·Hs(t-1) + β·U_east(t-1) + γ
@@ -110,7 +111,7 @@ function buildForecastCalc(scenario, hs0, winds) {
   ];
 }
 
-export default function ForecastTab() {
+export default function ForecastTab({ rfData }) {
   const [active,   setActive]   = useState('base');
   const [forecast, setForecast] = useState(null);
   const [running,  setRunning]  = useState(false);
@@ -277,6 +278,15 @@ export default function ForecastTab() {
       {/* ── RANDOM FOREST ── */}
       {section === 'rf' && (
         <div className="space-y-4">
+          {rfData ? (
+            <div className="rounded-lg px-3 py-2 bg-green-900/20 border border-green-700/40 text-xs text-green-400 w-fit">
+              ✅ Live model · trained on <strong>{rfData.fileName}</strong> · {rfData.totalRows} rows · accuracy {rfData.accuracy}%
+            </div>
+          ) : (
+            <div className="rounded-lg px-3 py-2 bg-slate-800/60 border border-slate-700 text-xs text-slate-400 w-fit">
+              ℹ Showing baseline results — upload a dataset in the <strong>Train</strong> tab to retrain live
+            </div>
+          )}
           <div className="panel">
             <h3 className="panel-title">RF Config · 100 trees · max_depth=5 · balanced weights</h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
@@ -284,7 +294,7 @@ export default function ForecastTab() {
                 ['Trees', '100'], ['Max Depth', '5'],
                 ['Features', 'Ws, U_wind, V_wind, U_east'], ['Classes', '0=Safe, 1=Caution, 2=Danger'],
                 ['Split', '80% / 20%'], ['Class weights', 'balanced'],
-                ['Accuracy', `${RF_ACCURACY}%`], ['ARX R²', ARX.r2.toFixed(3)],
+                ['Accuracy', `${rfData ? rfData.accuracy : RF_ACCURACY}%`], ['ARX R²', ARX.r2.toFixed(3)],
               ].map(([k, v]) => (
                 <div key={k} className="rounded-lg p-3 bg-[#060e1c]/50 border border-slate-800">
                   <p className="text-xs text-slate-400">{k}</p>
@@ -294,8 +304,15 @@ export default function ForecastTab() {
             </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="panel"><FeatureImportance data={FEATURE_IMPORTANCE} /></div>
-            <div className="panel"><ConfusionMatrix matrix={RF_CONFUSION} accuracy={RF_ACCURACY} /></div>
+            <div className="panel">
+              <FeatureImportance data={rfData ? rfData.featureImportance : FEATURE_IMPORTANCE} />
+            </div>
+            <div className="panel">
+              <ConfusionMatrix
+                matrix={rfData ? rfData.confusion : RF_CONFUSION}
+                accuracy={rfData ? rfData.accuracy : RF_ACCURACY}
+              />
+            </div>
           </div>
         </div>
       )}

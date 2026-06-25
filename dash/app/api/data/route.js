@@ -21,22 +21,27 @@ async function loadExcel(name) {
 function parseWind(rows) {
   return rows.flatMap(row => {
     const vals = Object.values(row);
-    const ws = parseFloat(vals[1]);
-    const wd = parseFloat(vals[2]);
+    // Excel layout: A=station name (skip), B=datetime DD/MM/YYYY HH:MM, C=Ws, D=Wd
+    const ws = parseFloat(vals[2]);
+    const wd = parseFloat(vals[3]);
     if (isNaN(ws) || isNaN(wd) || ws <= 0 || ws > 40) return [];
     const r     = (wd * Math.PI) / 180;
     const uWind = ws * Math.sin(r);
     const vWind = ws * Math.cos(r);
     const uEast = -uWind;
-    // cellDates:true → vals[0] is a JS Date object; fall back to string coercion
-    const raw0 = vals[0];
+    const raw1  = vals[1]; // Column B — DD/MM/YYYY HH:MM
     let timeStr = '';
-    if (raw0 instanceof Date) {
-      timeStr = raw0.toISOString();
-    } else if (raw0 != null) {
-      const s = String(raw0).trim();
-      // Normalize "YYYY-MM-DD HH:MM:SS" to ISO so the client can parse it reliably
-      timeStr = s.replace(/^(\d{4}-\d{2}-\d{2}) /, '$1T');
+    if (raw1 instanceof Date) {
+      // XLSX parsed as Date — use local components to avoid UTC shift
+      const p = n => String(n).padStart(2, '0');
+      timeStr = `${raw1.getFullYear()}-${p(raw1.getMonth()+1)}-${p(raw1.getDate())}T${p(raw1.getHours())}:${p(raw1.getMinutes())}:00`;
+    } else if (raw1 != null) {
+      const s = String(raw1).trim();
+      // Parse DD/MM/YYYY HH:MM (Israel day-first format)
+      const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})[T\s](\d{1,2}):(\d{2})/);
+      if (m) {
+        timeStr = `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}T${m[4].padStart(2,'0')}:${m[5]}:00`;
+      }
     }
     return [{ time: timeStr, Ws: ws, Wd: wd, U_wind: uWind, V_wind: vWind, U_east: uEast }];
   });
@@ -171,8 +176,11 @@ export async function GET(req) {
   const { searchParams } = new URL(req.url);
   const dateFilter = searchParams.get('date');
 
+  const allRows = searchParams.get('all') === '1';
   const rows = dateFilter
     ? _fullMerged.filter(r => r.time.startsWith(dateFilter))
+    : allRows
+    ? _fullMerged
     : _fullMerged.slice(-200);
 
   return Response.json({

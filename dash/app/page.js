@@ -5,6 +5,7 @@ import ForecastTab    from '@/components/tabs/ForecastTab';
 import RAGTab         from '@/components/tabs/RAGTab';
 import RealtimeTab    from '@/components/tabs/RealtimeTab';
 import WindWaveLagTab from '@/components/tabs/WindWaveLagTab';
+import TrainTab       from '@/components/tabs/TrainTab';
 
 const TABS = [
   { key: 'status',   icon: '🏠', label: 'Current Status' },
@@ -12,10 +13,12 @@ const TABS = [
   { key: 'rag',      icon: '🧠', label: 'RAG Assistant' },
   { key: 'realtime', icon: '🔴', label: 'Realtime' },
   { key: 'lag',      icon: '⏱️', label: 'Wind-Wave Lag' },
+  { key: 'train',    icon: '🤖', label: 'Train Model' },
 ];
 
 export default function Home() {
-  const [tab, setTab] = useState('status');
+  const [tab,    setTab]    = useState('status');
+  const [rfData, setRfData] = useState(null);
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -39,7 +42,9 @@ export default function Home() {
               <span className="text-slate-700">·</span>
               <span>lag = 1h</span>
               <span className="text-slate-700">·</span>
-              <span>RF 87.3%</span>
+              <span className={rfData ? 'text-green-400 font-semibold' : ''}>
+                RF {rfData ? rfData.accuracy : 87.3}%{rfData ? ' ✓' : ''}
+              </span>
             </div>
           </div>
         </div>
@@ -64,10 +69,11 @@ export default function Home() {
 
       <main className="flex-1 max-w-7xl mx-auto w-full px-4 py-6">
         {tab === 'status'   && <StatusTab />}
-        {tab === 'forecast' && <ForecastTab />}
+        {tab === 'forecast' && <ForecastTab rfData={rfData} />}
         {tab === 'rag'      && <RAGTab />}
         {tab === 'realtime' && <RealtimeTab />}
         {tab === 'lag'      && <WindWaveLagTab />}
+        {tab === 'train'    && <TrainTab onModelTrained={setRfData} />}
       </main>
 
       <footer className="border-t py-3 px-4 text-center text-xs text-slate-600" style={{ borderColor: 'rgba(14,165,233,0.1)' }}>

@@ -27,15 +27,24 @@ async function loadExcel(name) {
 function parseWind(rows) {
   return rows.flatMap(row => {
     const vals = Object.values(row);
-    const ws   = parseFloat(vals[1]);
-    const wd   = parseFloat(vals[2]);
+    // Excel layout: A=station name (skip), B=datetime DD/MM/YYYY HH:MM, C=Ws, D=Wd
+    const ws  = parseFloat(vals[2]);
+    const wd  = parseFloat(vals[3]);
     if (isNaN(ws) || isNaN(wd) || ws <= 0 || ws > 40) return [];
     const rad   = (wd * Math.PI) / 180;
     const uEast = -(ws * Math.sin(rad));
-    const raw0  = vals[0];
-    const time  = raw0 instanceof Date
-      ? raw0.toISOString()
-      : raw0 != null ? String(raw0).trim().replace(/^(\d{4}-\d{2}-\d{2}) /, '$1T') : '';
+    const raw1  = vals[1]; // Column B — DD/MM/YYYY HH:MM
+    let time = '';
+    if (raw1 instanceof Date) {
+      const p = n => String(n).padStart(2, '0');
+      time = `${raw1.getFullYear()}-${p(raw1.getMonth()+1)}-${p(raw1.getDate())}T${p(raw1.getHours())}:${p(raw1.getMinutes())}:00`;
+    } else if (raw1 != null) {
+      const s = String(raw1).trim();
+      const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})[T\s](\d{1,2}):(\d{2})/);
+      if (m) {
+        time = `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}T${m[4].padStart(2,'0')}:${m[5]}:00`;
+      }
+    }
     return [{ time, Ws: ws, Wd: wd, U_east: uEast }];
   });
 }
@@ -109,9 +118,12 @@ export async function GET(req) {
     }
   }
 
+  const allRows = searchParams.get('all') === '1';
   const rows = date
     ? cached.merged.filter(r => r.time.startsWith(date))
-    : cached.merged.slice(-48);   // last 48 h when no date specified
+    : allRows
+    ? cached.merged
+    : cached.merged.slice(-48);
 
   return Response.json({
     ok:             true,

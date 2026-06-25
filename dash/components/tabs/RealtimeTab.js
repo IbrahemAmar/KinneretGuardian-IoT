@@ -35,8 +35,10 @@ function parseRowTime(raw) {
       d = new Date(normalized);
     }
     if (isNaN(d.getTime())) return { date: String(raw), hour: '—', iso: String(raw), obj: null };
-    const date = d.toLocaleDateString('en-GB', { day:'2-digit', month:'long', year:'numeric' });
-    const hour = d.toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit', hour12: false });
+    const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const pad  = n => String(n).padStart(2, '0');
+    const date = `${pad(d.getDate())} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+    const hour = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
     const iso  = d.toISOString();
     return { date, hour, iso, obj: d };
   } catch {
@@ -142,11 +144,15 @@ export default function RealtimeTab() {
   }, [playing, tick]);
 
   const dang = data?.dang;
-  // Use rawTime from computed data; fall back to the raw row's time field so the
-  // timestamp is always visible even before the user presses Play.
   const rawTimeForDisplay = data?.rawTime ?? dataset[histIdx]?.time;
   const ts   = parseRowTime(rawTimeForDisplay);
   const lastTickTs = lastTick ? lastTick.toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit', second:'2-digit' }) : '—';
+
+  // Computed DIRECTLY from the dataset row — never null, doesn't wait for data state
+  const sliderTs   = parseRowTime(dataset[histIdx]?.time);
+  const firstRowTs = parseRowTime(dataset[0]?.time);
+  const midRowTs   = parseRowTime(dataset[Math.floor((totalRows - 1) / 2)]?.time);
+  const lastRowTs  = parseRowTime(dataset[totalRows - 1]?.time);
 
   return (
     <div className="space-y-5">
@@ -264,17 +270,102 @@ export default function RealtimeTab() {
         )}
       </div>
 
-      {/* ── JUMP TO ROW slider (historical) ── */}
-      {source === 'historical' && realRows.length > 0 && (
-        <div className="rounded-lg bg-[#0a1628] border border-slate-800 px-4 py-3 space-y-2">
-          <div className="flex justify-between text-xs text-slate-500">
-            <span>← Oldest: {parseRowTime(dataset[0]?.time).date}</span>
-            <span className="text-sky-400 font-mono font-bold">{ts.date} · {ts.hour}</span>
-            <span>Latest: {parseRowTime(dataset[totalRows-1]?.time).date} →</span>
+      {/* ── t-AXIS TIMELINE SLIDER ── */}
+      {source === 'historical' && totalRows > 0 && (
+        <div className="rounded-xl border border-sky-900/40 bg-[#0a1628] px-5 py-5 space-y-5">
+
+          {/* ── Current date + time — BIG, from the data file directly ── */}
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4 border-b border-slate-800 pb-5">
+            <div className="flex-1">
+              <p className="text-[10px] text-slate-500 uppercase tracking-widest mb-3">
+                📍 You are viewing this historical record
+              </p>
+              <div className="flex items-center gap-6 flex-wrap">
+                {/* DATE */}
+                <div>
+                  <p className="text-[10px] text-slate-500 uppercase mb-1">Date</p>
+                  <p className="text-2xl font-bold text-white leading-none">{sliderTs.date}</p>
+                </div>
+                {/* divider */}
+                <div className="hidden sm:block w-px h-10 bg-slate-700" />
+                {/* TIME */}
+                <div>
+                  <p className="text-[10px] text-slate-500 uppercase mb-1">Time</p>
+                  <p
+                    className="text-5xl font-black font-mono leading-none"
+                    style={{ color: '#38bdf8', textShadow: '0 0 20px #0ea5e966' }}
+                  >
+                    {sliderTs.hour}
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="text-right shrink-0">
+              <p className="text-[10px] text-slate-500 uppercase mb-1">Record</p>
+              <p className="font-mono text-slate-300 text-sm">
+                {histIdx + 1} <span className="text-slate-600">of</span> {totalRows}
+              </p>
+            </div>
           </div>
-          <input type="range" min={0} max={totalRows - 1} value={histIdx}
-            onChange={e => setHistIdx(+e.target.value)}
-            className="w-full accent-sky-500" />
+
+          {/* ── Slider with floating badge ── */}
+          <div className="relative pt-11">
+            {/* Floating badge that tracks the thumb */}
+            <div
+              className="absolute top-0 pointer-events-none"
+              style={{
+                left: `${(histIdx / Math.max(totalRows - 1, 1)) * 100}%`,
+                transform: 'translateX(-50%)',
+              }}
+            >
+              <div
+                className="rounded-lg text-center px-3 py-1.5 shadow-xl whitespace-nowrap"
+                style={{ background: '#0c1f3a', border: '1px solid #0ea5e9aa' }}
+              >
+                <p className="text-sky-300 font-mono font-bold text-sm leading-none">
+                  {sliderTs.hour}
+                </p>
+                <p className="text-slate-400 text-[10px] mt-0.5 leading-none">
+                  {sliderTs.date}
+                </p>
+                <div
+                  className="absolute left-1/2 -translate-x-1/2 -bottom-[7px]"
+                  style={{
+                    width: 0, height: 0,
+                    borderLeft:  '6px solid transparent',
+                    borderRight: '6px solid transparent',
+                    borderTop:   '7px solid #0ea5e9aa',
+                  }}
+                />
+              </div>
+            </div>
+
+            <input
+              type="range"
+              min={0}
+              max={totalRows - 1}
+              value={histIdx}
+              onChange={e => {
+                setHistIdx(+e.target.value);
+                setPlaying(false);
+              }}
+              className="w-full accent-sky-500 cursor-pointer"
+            />
+          </div>
+
+          {/* ── Timeline axis anchors ── */}
+          <div className="flex justify-between pt-1">
+            {[
+              [firstRowTs, 'text-left'],
+              [midRowTs,   'text-center hidden sm:block'],
+              [lastRowTs,  'text-right'],
+            ].map(([t, align], i) => (
+              <div key={i} className={align}>
+                <p className="text-[10px] text-slate-500 leading-snug">{t.date}</p>
+                <p className="text-[10px] text-sky-700 font-mono font-semibold leading-snug">{t.hour}</p>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
