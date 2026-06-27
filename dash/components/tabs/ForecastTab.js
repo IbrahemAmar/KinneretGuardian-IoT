@@ -218,12 +218,6 @@ export default function ForecastTab({ rfData }) {
             )}
           </div>
 
-          <OriginalChart
-            src="/charts/chart_3.png"
-            title="12-Hour Wave Forecast"
-            description="Original Python/matplotlib output. ARX model forecast with Safe / Caution / Danger zone bands. Forecast starts from actual data point."
-            defaultOpen={true}
-          />
         </div>
       )}
 

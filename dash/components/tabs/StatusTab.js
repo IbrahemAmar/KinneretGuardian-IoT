@@ -1,9 +1,7 @@
 'use client';
 import { useState, useCallback, useEffect } from 'react';
-import CCFChart      from '@/components/charts/CCFChart';
 import OriginalChart from '@/components/OriginalChart';
 import CalcSteps, { buildARXSteps } from '@/components/CalcSteps';
-import { computeCCF } from '@/lib/arxModel';
 import { classifyDanger, windDir, uEast } from '@/lib/dangerUtils';
 import { generateMockData } from '@/lib/mockData';
 
@@ -17,15 +15,12 @@ export default function StatusTab() {
   const [calcSteps, setCalc]    = useState(null);
   const [arxInfo,   setArx]     = useState({ alpha: 0.6634, beta: 0.0069, gamma: 0.0153, r2: 0.718 });
 
-  // Load GitHub data for CCF
   useEffect(() => {
     fetch('/api/data')
       .then(r => r.json())
       .then(d => { if (d.ok) { setReal(d); setArx(d.arx); } })
       .catch(() => {});
   }, []);
-
-  const ccfData = realData?.ccf ?? computeCCF(fallback);
 
   const checkNow = useCallback(async () => {
     setLoading(true);
@@ -75,6 +70,15 @@ export default function StatusTab() {
         </button>
       </div>
 
+      {showCCF && (
+        <OriginalChart
+          src="/charts/chart_2.png"
+          title="Cross-Correlation: U_east (wind) ↔ Hs (waves)"
+          description="Original Python/matplotlib output. Peak at lag = 1 h confirms wind drives waves with a 1-hour delay."
+          defaultOpen={true}
+        />
+      )}
+
       {/* Live status card */}
       {status && (
         <div className="rounded-xl p-5 border space-y-4"
@@ -110,25 +114,6 @@ export default function StatusTab() {
 
       {/* Calculation steps */}
       {calcSteps && <CalcSteps steps={calcSteps} title="🔢 ARX Calculation — Step by Step" />}
-
-      {/* CCF section */}
-      {showCCF && (
-        <div className="space-y-4">
-          <div className="panel">
-            <h3 className="panel-title">Cross-Correlation: U_east (wind) ↔ Hs (waves) — Interactive</h3>
-            <p className="text-xs text-slate-400 mb-3">
-              {realData?.ok ? `Computed from ${realData.count} real GitHub data rows` : 'Computed from simulation data'}
-              · Peak at lag = 1 h confirms wind drives waves with a 1-hour delay
-            </p>
-            <CCFChart data={ccfData} />
-          </div>
-          <OriginalChart
-            src="/charts/chart_2.png"
-            title="Cross-Correlation: U_east(wind) vs Hs(waves)"
-            description="Original matplotlib output from the Python notebook. Shows correlation peaking at lag = 1 h (r ≈ 0.61)."
-          />
-        </div>
-      )}
 
       {/* Original regression chart — always shown */}
       <OriginalChart
